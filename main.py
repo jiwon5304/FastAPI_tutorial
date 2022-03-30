@@ -1,8 +1,8 @@
 from enum import Enum
 from optparse import Option
-from typing import  Optional
+from typing import  Optional, List
 from pydantic import BaseModel
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 
 # class ModelName(str, Enum):
 #     a = "alexnet"
@@ -132,4 +132,80 @@ async def create_item(item_id: int, item: Item, q: Optional[str] = None):
         result.update({"q": q})
     return result
 
-    
+# 유효성검사
+app = FastAPI()
+
+@app.get("/items/")
+# async def read_items(q: Optional[str] = None):  #기본값: None
+# async def read_items(q: Optional[str] = Query(None, min_length=3, max_length=50, regex="^fixedquery$")): # 유효성검사: 추가 검증 -> Q값은 선택값 & 3 < 길이 < 50 & 정규표현식
+async def read_items(q: str = Query("fixedquery", min_length=3)): # 기본값: fixedquery & 3 < 길이 
+    results = {"items": [{"item_id": "Foo"}, {"item_id": "Bar"}]}
+    if q:
+        results.update({"q": q})
+    return results
+
+# url: http://127.0.0.1:8000/items/?q=foo&q=bar
+# List 방법1
+@app.get("/items/")
+async def read_items(q: Optional[List[str]] = Query(None)):
+    query_items = {"q": q}
+    return query_items
+
+# List 방법2
+@app.get("/items/")
+async def read_items(q: list = Query([])):
+    query_items = {"q": q}
+    return query_items
+
+# title, description 추가
+@app.get("/items/")
+async def read_items(
+    q: Optional[str] = Query(
+        None,
+        title="Query string",
+        description="Query string for the items to search in the database that have a good match",
+        min_length=3,
+    )
+):
+    results = {"items": [{"item_id": "Foo"}, {"item_id": "Bar"}]}
+    if q:
+        results.update({"q": q})
+    return results
+
+# Alias parameters
+# url: http://127.0.0.1:8000/items/?item-query=ddddd
+@app.get("/items/")
+async def read_items(q: Optional[str] = Query(None, alias="item-query")):
+    results = {"items": [{"item_id": "Foo"}, {"item_id": "Bar"}]}
+    if q:
+        results.update({"q": q})
+    return results
+
+# deprecated=True -> 더 이상 사용하지 않겠다는 뜻
+@app.get("/items/")
+async def read_items(
+    q: Optional[str] = Query(
+        None,
+        alias="item-query",
+        title="Query string",
+        description="Query string for the items to search in the database that have a good match",
+        min_length=3,
+        max_length=50,
+        regex="^fixedquery$",
+        deprecated=True,
+    )
+):
+    results = {"items": [{"item_id": "Foo"}, {"item_id": "Bar"}]}
+    if q:
+        results.update({"q": q})
+    return results
+
+# include_in_schema=False -> OpenAPI 스키마(자동 문서)에서 쿼리 매개변수를 제외
+@app.get("/items/")
+async def read_items(
+    hidden_query: Optional[str] = Query(None, include_in_schema=False)
+):
+    if hidden_query:
+        return {"hidden_query": hidden_query}
+    else:
+        return {"hidden_query": "Not found"}
